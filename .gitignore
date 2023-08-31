@@ -133,13 +133,3 @@ dmypy.json
 # IDE settings
 .idea
 .vscode
-
-# tensorboard
-tensorboard
-
-# volume
-config/
-dags/
-data/
-logs/
-plugins/
