@@ -3,10 +3,10 @@ from realtime_trend_pipeline.common.env import *
 
 
 class PATH:
+    hdfs = '/hdfs'
+    dfs  = '/dfs'
     app  = 'realtime_trend_pipeline'
-    root = '/opt/airflow'
-    dags = join(root, 'dags')
+
+    dags = join('/opt/airflow', 'dags')
     src  = join(dags, app)
     operators = join(src, 'operators')
-    hdfs = join('/hdfs', app)
-    dfs  = join('/dfs', app)

@@ -15,11 +15,11 @@ def crawler_factory(image_type, file_path):
         auto_remove='force',
         mounts=[
             Mount(source=os.getenv('HDFS_DIR'), target=PATH.hdfs, type='bind'),  # source: host, target: container
-            Mount(source=os.getenv('DFS_DIR'),  target=PATH.dfs, type='bind'),   # source: host, target: container
+            Mount(source=os.getenv('DFS_DIR'),  target=PATH.dfs,  type='bind'),   # source: host, target: container
             Mount(source=os.getenv('DAGS_DIR'), target=PATH.dags, type='bind'),  # source: host, target: container
         ],
         docker_url="tcp://docker-proxy:2375",
-        mount_tmp_dir=False,
+        mount_tmp_dir=False
     )
 
     cmd_install_python = """
@@ -29,7 +29,7 @@ def crawler_factory(image_type, file_path):
         rm /tmp/get-pip.py
     """
     cmd_install_python_deps = """
-        python3 -m pip install pandas selenium hdfs
+        python3 -m pip install pandas selenium
     """
     cmd_execute_python = f"""
         cd {PATH.dags}
@@ -42,7 +42,7 @@ def crawler_factory(image_type, file_path):
     #   image_type = unofficial: python is installed
     #   image_type =   official: python is not installed
     # --------------------------------------------------
-    if image_type == 'non-official':
+    if image_type == 'unofficial':
         params = dict(
             image='joyzoursky/python-chromedriver:3.8-selenium',
             command=f"""

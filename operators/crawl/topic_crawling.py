@@ -34,19 +34,19 @@ def crawl_topic(file_path: str):
     year, month, day, ampm, hour, minute = match.groups()
     year, month, day, hour, minute = map(int, [year, month, day, hour, minute])
     hour = hour if (ampm == '오전') or (hour == 12) else hour + 12
-    date = datetime(year, month, day, hour, minute)
+    time = datetime(year, month, day, hour, minute)
 
 
     # 3. Clean topic
     topics_title = [x.text for x in find_class_name("rank-text")]
     topics_rank  = [int(x.text) for x in find_class_name("rank-num")]
-    topics       = [{'date': date, 'rank': rank, 'title': title} for rank, title in zip(topics_rank, topics_title)]
-    topics_df    = pd.DataFrame(topics).sort_values(['date', 'rank'])
+    topics       = [{'time': time, 'rank': rank, 'title': title} for rank, title in zip(topics_rank, topics_title)]
+    topics_df    = pd.DataFrame(topics).sort_values(['time', 'rank'])
 
 
     # 4. Save to file system(volume)
     os.makedirs(dirname(file_path), exist_ok=True)
-    topics_df.to_csv(file_path)
+    topics_df.to_csv(file_path, index=False)
     print("Load Success:", file_path)
 
 
