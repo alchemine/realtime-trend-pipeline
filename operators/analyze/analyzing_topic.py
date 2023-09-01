@@ -1,12 +1,10 @@
 import sys
 sys.path.append("/opt/airflow/dags")
 from realtime_trend_pipeline.common import *
-
-from os.path import join, dirname, abspath
 from datetime import datetime, timedelta
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import count, avg, desc, asc, desc, round
+import pyspark.sql.functions as F
 
 
 def get_recent_topics(table: str, output_path: str):
@@ -56,8 +54,8 @@ def get_recent_topics(table: str, output_path: str):
     raw_result = recent_topics \
         .groupby('title')\
         .agg(
-            count('title').alias('count_title'),
-            avg('rank').alias('avg_rank')
+            F.count('title').alias('count_title'),
+            F.avg('rank').alias('avg_rank')
         )
     raw_result.createOrReplaceTempView("raw_result")
     
@@ -72,7 +70,7 @@ def get_recent_topics(table: str, output_path: str):
             `출현비율(%)` DESC,
             `평균순위` ASC
         LIMIT
-            10
+            {params['n_topics_per_iter']}
     """)
 
 
