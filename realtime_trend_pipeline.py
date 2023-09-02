@@ -4,16 +4,38 @@ from realtime_trend_pipeline.operators.crawl.factory import crawler_factory
 from datetime import datetime
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
-# from airflow.operators.python import PythonOperator
+# from airflow.operators.bash import BashOperator
+from airflow.operators.dummy_operator import DummyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.operators.hive_operator import HiveOperator
+from airflow.providers.apache.kafka.operators.produce import ProduceToTopicOperator
+# from airflow.providers.apache.kafka.operators.consume import ConsumeFromTopicOperator
+from airflow.exceptions import AirflowFailException
 
 
 default_args = {
     'owner': 'alchemine',
     'start_date': datetime(2023, 9, 2)
 }
+
+def producer(output_path):
+    yield (
+        json.dumps(0),
+        json.dumps(
+            {
+                "output_path": output_path
+            }
+        )
+    )
+
+
+# def consumer(msg, output_path: str):
+#     msg = json.loads(msg.decode('utf-8'))
+#     if msg.value['output_path']:
+#         print("[Success] Sending message")
+#     else:
+#         print("[Failure] Sending message")
+#         raise AirflowFailException
 
 
 with DAG(
@@ -48,7 +70,9 @@ with DAG(
         orc_table=f"{PATH.app}.topic",
         db_path=join(PATH.hdfs, f"{PATH.app}.db"),
         local_csv_path=file_path,
-        output_path=join(PATH.output, "recent_topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}")  # directory
+        output_path=join(PATH.output, "recent_topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}"),  # directory
+        topic_request_message='recent_topics',
+        # topic_request_message_monitor='recent_topics_monitor'
     )
 
 
@@ -101,8 +125,7 @@ with DAG(
             -- 4. Show table
             SELECT * FROM {params["orc_table"]};
         """,
-        hive_cli_conn_id='hive_cli_conn',
-        # run_as_owner=True
+        hive_cli_conn_id='hive_cli_conn'
     )
 
     
@@ -116,10 +139,40 @@ with DAG(
         conn_id='spark_conn'
     )
 
-
-    # send_message = PythonOperator(
-    #     task_id='send_message',
-    #     python_callable=send_message
-    # )
     
-    crawl >> load >> analyze
+    # ------------------------------------------------------------
+    # 4. Send message to Kakao messaging server
+    # ------------------------------------------------------------
+    request_message = ProduceToTopicOperator(
+        task_id='request_message',
+        kafka_config_id='kafka_default',
+        topic=params['topic_request_message'],
+        producer_function=producer,
+        producer_function_args=[params['output_path']],
+        # poll_timeout=10
+    )
+
+
+    # ------------------------------------------------------------
+    # 5. Receive result message from Kakao messaging server
+    # ------------------------------------------------------------
+    # result_monitor = ConsumeFromTopicOperator(
+    #     task_id='result_monitor',
+    #     kafka_config_id='kafka_default',
+    #     topics=[params['topic_request_message_monitor']],
+    #     apply_function=consumer,
+    #     apply_function_args=[params['output_path']],
+    #     poll_timeout=120,
+    #     max_messages=1,
+    #     # max_batch_size=20
+    # )
+
+
+    # ------------------------------------------------------------
+    # 6. Finish
+    # ------------------------------------------------------------
+    finish = DummyOperator(
+        task_id='finish'
+    )
+
+    crawl >> load >> analyze >> request_message >> finish
