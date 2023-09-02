@@ -6,6 +6,14 @@ Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_tre
 ![workflow](/assets/image-0.png)
 
 
+## TODO
+1. 적절한 형태로 분석 결과를 문자열로 가공하는 작업을 새로운 task로 추출
+2. 시간이 제대로 싱크되지 않는 문제 해결
+3. Airflow callback 추가
+4. 시스템 안정성 추가
+
+---
+
 ## 1. Configuration
 - OS: Ubuntu22.04
 - Docker cluster: [alchemine/hadoop-docker-cluster](https://github.com/alchemine/hadoop-docker-cluster)
@@ -21,6 +29,7 @@ Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_tre
 
 ![site sample](/assets/image-1.png)
 ![csv sample](/assets/image-2.png)
+
 
 ### 2) Load
 Local csv file을 hive metastore 내 external partitioned orc table에 적재
@@ -49,7 +58,7 @@ Local csv file을 hive metastore 내 external partitioned orc table에 적재
 
 ### 5) Finish
 모든 작업이 정상종료되었다는 것을 확인
-- `from airflow.operators.dummy_operator.DummyOperator`
+- `airflow.operators.dummy_operator.DummyOperator`
 
 ![message sample](/assets/image-7.png)
 
