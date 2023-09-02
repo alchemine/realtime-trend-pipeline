@@ -1,7 +1,9 @@
 # realtime_trend_pipeline
 실시간 검색어를 크롤링하여 hive metastore에 적재, 분석 후 분석 결과를 카카오톡 메시지로 전송하는 데이터 파이프라인
 
-Workflow: [https://github.com/alchemine/realtime_trend_pipeline/blob/main/scripts/realtime_trend_pipeline.py](https://github.com/alchemine/realtime_trend_pipeline/blob/main/scripts/realtime_trend_pipeline.py)
+Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_trend_pipeline/blob/main/realtime_trend_pipeline.py)
+
+![workflow](/assets/image-0.png)
 
 
 ## 1. Configuration
@@ -11,29 +13,29 @@ Workflow: [https://github.com/alchemine/realtime_trend_pipeline/blob/main/script
 - Data source: [시그널 실시간 검색어](http://signal.bz)
 
 
-## 2. Workflow(Airflow)
+## 2. Airflow Workflow
 ### 1) Crawl
 [시그널 실시간 검색어](http://signal.bz)로부터 실시간 검색어를 크롤링하고 csv format으로 local에 저장
 - `airflow.providers.docker.operators.docker.DockerOperator`
 - [`selenium/standalone-chrome:90.0.4430.85-chromedriver-90.0.4430.24`](https://hub.docker.com/layers/selenium/standalone-chrome/90.0.4430.85-chromedriver-90.0.4430.24-grid-4.0.0-beta-3-20210426/images/sha256-1532a6d76064edc555045aa790918fbbca972426099e0559ee4eef138dd0db62?context=explore) \
 
-<!-- ![site sample](/assets/image-1.png) -->
-<!-- ![csv sample](/assets/image-2.png) -->
-
+![site sample](/assets/image-1.png)
+![csv sample](/assets/image-2.png)
 
 ### 2) Load
 Local csv file을 hive metastore 내 external partitioned orc table에 적재
 - `airflow.operators.hive_operator.HiveOperator`
 
-<!-- ![partition sample](/assets/image-3.png) -->
-<!-- ![orc sample](/assets/image-4.png) -->
+![partition sample](/assets/image-3.png)
+![orc schema](/assets/image-4.png)
+![orc sample](/assets/image-4-1.png)
 
 
 ### 3) Analyze
 최근 1시간(기준: `execution_date`) 동안 저장된 인기 검색어들을 읽어와 각 검색어에 대하여, 검색어 순위 내 출현비율과 평균순위를 계산한 결과를 local csv file로 저장
 - `airflow.providers.apache.spark.operators.spark_submit.SparkSubmitOperator`
 
-<!-- ![output sample](/assets/image-5.png) -->
+![output sample](/assets/image-5.png)
 
 
 ### 4) Request message
@@ -41,15 +43,14 @@ Local csv file을 hive metastore 내 external partitioned orc table에 적재
 - `airflow.providers.apache.kafka.operators.produce.ProduceToTopicOperator`
 - Kakao message server: []()
 
-<!-- ![message sample](/assets/image-6.png) -->
+![message sample](/assets/image-6.png)
 
 
 ### 5) Finish
 모든 작업이 정상종료되었다는 것을 확인
 - `from airflow.operators.dummy_operator.DummyOperator`
 
-<!-- ![workflow sample](/assets/image-7.png) -->
-
+![message sample](/assets/image-7.png)
 
 
 <!-- # 2. Considerations
