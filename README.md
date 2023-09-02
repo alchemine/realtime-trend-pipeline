@@ -17,7 +17,7 @@ Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_tre
 ### 1) Crawl
 [시그널 실시간 검색어](http://signal.bz)로부터 실시간 검색어를 크롤링하고 csv format으로 local에 저장
 - `airflow.providers.docker.operators.docker.DockerOperator`
-- [`selenium/standalone-chrome:90.0.4430.85-chromedriver-90.0.4430.24`](https://hub.docker.com/layers/selenium/standalone-chrome/90.0.4430.85-chromedriver-90.0.4430.24-grid-4.0.0-beta-3-20210426/images/sha256-1532a6d76064edc555045aa790918fbbca972426099e0559ee4eef138dd0db62?context=explore) \
+- [`selenium/standalone-chrome:90.0.4430.85-chromedriver-90.0.4430.24`](https://hub.docker.com/layers/selenium/standalone-chrome/90.0.4430.85-chromedriver-90.0.4430.24-grid-4.0.0-beta-3-20210426/images/sha256-1532a6d76064edc555045aa790918fbbca972426099e0559ee4eef138dd0db62?context=explore)
 
 ![site sample](/assets/image-1.png)
 ![csv sample](/assets/image-2.png)
@@ -25,14 +25,15 @@ Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_tre
 ### 2) Load
 Local csv file을 hive metastore 내 external partitioned orc table에 적재
 - `airflow.operators.hive_operator.HiveOperator`
+- partition unit: hour
 
+![Alt text](/assets/image-4.png)
 ![partition sample](/assets/image-3.png)
-![orc schema](/assets/image-4.png)
 ![orc sample](/assets/image-4-1.png)
 
 
 ### 3) Analyze
-최근 1시간(기준: `execution_date`) 동안 저장된 인기 검색어들을 읽어와 각 검색어에 대하여, 검색어 순위 내 출현비율과 평균순위를 계산한 결과를 local csv file로 저장
+최근 1시간(기준: `{{ execution_date }}`) 동안 저장된 인기 검색어들을 읽어와 각 검색어에 대하여, 검색어 순위 내 출현비율과 평균순위를 계산한 결과를 local csv file로 저장
 - `airflow.providers.apache.spark.operators.spark_submit.SparkSubmitOperator`
 
 ![output sample](/assets/image-5.png)
@@ -41,9 +42,9 @@ Local csv file을 hive metastore 내 external partitioned orc table에 적재
 ### 4) Request message
 분석 결과를 카카오톡 메시지를 보내주는 서버에 json 형태로 publish
 - `airflow.providers.apache.kafka.operators.produce.ProduceToTopicOperator`
-- Kakao message server: []()
+- Kakao message server: [operators/send/start_kakao_message_server.py](https://github.com/alchemine/realtime_trend_pipeline/blob/main/operators/send/start_kakao_message_server.py)
 
-![message sample](/assets/image-6.png)
+![message sample](/assets/image-6.jpg)
 
 
 ### 5) Finish
