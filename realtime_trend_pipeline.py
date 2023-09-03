@@ -17,7 +17,7 @@ from airflow.providers.apache.kafka.operators.produce import ProduceToTopicOpera
 from kafka import KafkaProducer
 
 
-params = dict(
+PARAMS = dict(
     db=PATH.app,
     csv_table=f"{PATH.app}.topic_tmp",
     orc_table=f"{PATH.app}.topic",
@@ -30,9 +30,9 @@ params = dict(
 
 def on_failure(context):
     # TODO: add new topic
-    producer = KafkaProducer(bootstrap_servers=params['kafka_bootstrap_servers'])
+    producer = KafkaProducer(bootstrap_servers=PARAMS['kafka_bootstrap_servers'])
     producer.send(
-        params['topic_request_message'],
+        PARAMS['topic_request_message'],
         json.dumps({'text': 'Failure occurs', 'output_path': None})
     )
 
@@ -80,12 +80,10 @@ with DAG(
     # ------------------------------------------------------------
     # Initialize parameters
     # ------------------------------------------------------------
-    file_path = join(PATH.input, "topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}.csv")
-    params['local_csv_path'] = file_path
-    params['output_path']    = join(
-        PATH.output,
-        "recent_topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}"
-    )  # directory
+    cur_time  = "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}"
+    file_path = join(PATH.input, "topics", f"{cur_time}.csv")
+    PARAMS['local_csv_path'] = file_path
+    PARAMS['output_path']    = join(PATH.output, "recent_topics", cur_time)  # directory
 
 
     # ------------------------------------------------------------
@@ -93,7 +91,7 @@ with DAG(
     # ------------------------------------------------------------
     crawl = crawler_factory(
         image_type='unofficial',  # 'unofficial': python installed, 'official': python uninstalled
-        file_path=params['local_csv_path']
+        file_path=PARAMS['local_csv_path']
     )
 
 
@@ -104,13 +102,13 @@ with DAG(
         task_id='load',
         hql=f"""
             -- 1. Create database
-            -- DROP DATABASE {params["db"]} CASCADE;
-            CREATE DATABASE IF NOT EXISTS {params["db"]}
-            LOCATION "{params['db_path']}";
+            -- DROP DATABASE {PARAMS["db"]} CASCADE;
+            CREATE DATABASE IF NOT EXISTS {PARAMS["db"]}
+            LOCATION "{PARAMS['db_path']}";
 
             
             -- 2. Create temporary CSV table
-            CREATE TEMPORARY TABLE {params["csv_table"]} (
+            CREATE TEMPORARY TABLE {PARAMS["csv_table"]} (
                 `time` TIMESTAMP, rank INT, title STRING
             )
             ROW FORMAT DELIMITED
@@ -119,23 +117,23 @@ with DAG(
             STORED AS TEXTFILE
             TBLPROPERTIES('skip.header.line.count'='1');
             
-            LOAD DATA LOCAL INPATH "{params['local_csv_path']}"
-            OVERWRITE INTO TABLE {params["csv_table"]};
+            LOAD DATA LOCAL INPATH "{PARAMS['local_csv_path']}"
+            OVERWRITE INTO TABLE {PARAMS["csv_table"]};
 
 
             -- 3. Create ORC table
-            CREATE EXTERNAL TABLE IF NOT EXISTS {params["orc_table"]} (
+            CREATE EXTERNAL TABLE IF NOT EXISTS {PARAMS["orc_table"]} (
                 `time` TIMESTAMP, rank INT, title STRING
             )
             PARTITIONED BY (hour STRING)
             STORED AS ORC;
 
-            INSERT INTO TABLE {params["orc_table"]} PARTITION (hour="{{{{ execution_date.strftime('%Y-%m-%d_%H-00-00') }}}}")
-            SELECT * FROM {params["csv_table"]};
+            INSERT INTO TABLE {PARAMS["orc_table"]} PARTITION (hour="{{{{ execution_date.strftime('%Y-%m-%d_%H-00-00') }}}}")
+            SELECT * FROM {PARAMS["csv_table"]};
             
             
             -- 4. Show table
-            SELECT * FROM {params["orc_table"]};
+            SELECT * FROM {PARAMS["orc_table"]};
         """,
         hive_cli_conn_id='hive_cli_conn'
     )
@@ -147,7 +145,7 @@ with DAG(
     analyze = SparkSubmitOperator(
         task_id='analyze',
         application=join(PATH.operators, 'analyze/analyzing_topic.py'),
-        application_args=[params['orc_table'], params['output_path']],
+        application_args=[PARAMS['orc_table'], PARAMS['output_path']],
         conn_id='spark_conn'
     )
 
@@ -158,7 +156,7 @@ with DAG(
     postprocess = PythonOperator(
         task_id='postprocess',
         python_callable=process_output_path_to_message,
-        op_kwargs={'output_path': params['output_path']}
+        op_kwargs={'output_path': PARAMS['output_path']}
     )
 
  
@@ -168,11 +166,11 @@ with DAG(
     request_message = ProduceToTopicOperator(
         task_id='request_message',
         kafka_config_id='kafka_default',
-        topic=params['topic_request_message'],
+        topic=PARAMS['topic_request_message'],
         producer_function=request_message_producer,
         producer_function_kwargs=dict(
             text="{{ ti.xcom_pull(task_ids='postprocess') }}",
-            output_path=params['output_path']
+            output_path=PARAMS['output_path']
         )
         # poll_timeout=10
     )
@@ -184,9 +182,9 @@ with DAG(
     # result_monitor = ConsumeFromTopicOperator(
     #     task_id='result_monitor',
     #     kafka_config_id='kafka_default',
-    #     topics=[params['topic_request_message_monitor']],
+    #     topics=[PARAMS['topic_request_message_monitor']],
     #     apply_function=consumer,
-    #     apply_function_args=[params['output_path']],
+    #     apply_function_args=[PARAMS['output_path']],
     #     poll_timeout=120,
     #     max_messages=1,
     #     # max_batch_size=20
