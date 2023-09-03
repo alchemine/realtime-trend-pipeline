@@ -51,19 +51,32 @@ Local csv file을 hive metastore 내 external partitioned orc table에 적재
 ![output sample](/assets/image-5.png)
 
 
-### 4) Request message
-분석 결과를 카카오톡 메시지를 보내주는 서버에 json 형태로 publish
+### 4) Postprocess
+분석 결과를 카카오톡 메시지로 보내기 적절한 형태로 처리
+- `airflow.operators.python.PythonOperator`
+
+![Alt text](/assets/image-5-1.png)
+
+
+### 5) Request message
+후처리된 메시지를 카카오톡 메시지를 보내주는 서버에 json 형태로 publish
 - `airflow.providers.apache.kafka.operators.produce.ProduceToTopicOperator`
 - Kakao message server: [operators/send/start_kakao_message_server.py](https://github.com/alchemine/realtime_trend_pipeline/blob/main/operators/send/start_kakao_message_server.py)
 
 ![message sample](/assets/image-6.jpg)
 
 
-### 5) Finish
+### 6) Finish
 모든 작업이 정상종료되었다는 것을 확인
 - `airflow.operators.dummy_operator.DummyOperator`
 
 ![message sample](/assets/image-7.png)
+
+
+## 3. Considerations
+### 1) Airflow
+1. 실패 시, 5분 마다 재실행(`retries`, `retry_delay`) 및 카카오톡 메시지 전송(`on_failure_callback`)
+2. `DockerOperator`, `HiveOperator`, `SparkSubmitOperator`, `ProduceToTopicOperator`, `Python`
 
 
 <!-- # 2. Considerations
