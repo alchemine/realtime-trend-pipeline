@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pandas as pd
 from PyKakao import Message
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaConsumer
 
 
 def get_api():
@@ -25,21 +25,23 @@ def get_api():
 
 
 def start_server(api):
-    # producer = KafkaProducer(bootstrap_servers=['kafka-server:19092'])
     consumer = KafkaConsumer(
         'recent_topics',
         bootstrap_servers=['kafka-server:19092'],
-        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+        group_id='kakao_message_server',
+        value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+        auto_offset_reset='earliest',
+        enable_auto_commit=False
     )
 
     for msg in consumer:
+        print("- Message info")
+        print(f"topic={msg.topic}, partition={msg.partition}, offset={msg.offset}")
+        print(f"key={msg.key}, value={msg.value}")
+
         text, output_path = msg.value['text'], msg.value['output_path']
-        try:  # success
-            api.send_text(text=text, link={}, button_title="바로 확인")
-            msg_result = {output_path: True}
-        except:  # failure
-            msg_result = {output_path: False}
-        # producer.send('recent_topics_monitor', json.dumps(msg_result))
+        api.send_text(text=text, link={}, button_title="바로 확인")
+        consumer.commit()
 
 
 if __name__ == '__main__':
