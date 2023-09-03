@@ -6,14 +6,11 @@ from realtime_trend_pipeline.operators.request_message.request_message import pr
 from datetime import datetime, timedelta
 
 from airflow import DAG
-# from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.operators.hive_operator import HiveOperator
 from airflow.providers.apache.kafka.operators.produce import ProduceToTopicOperator
-# from airflow.providers.apache.kafka.operators.consume import ConsumeFromTopicOperator
-# from airflow.exceptions import AirflowFailException
 from kafka import KafkaProducer
 
 
@@ -23,7 +20,6 @@ PARAMS = dict(
     orc_table=f"{PATH.app}.topic",
     db_path=join(PATH.hdfs, f"{PATH.app}.db"),
     topic_request_message='recent_topics',
-    # topic_request_message_monitor='recent_topics_monitor',
     kafka_bootstrap_servers=['kafka-server:19092']
 )
 
@@ -44,15 +40,6 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
     'on_failure_callback': on_failure
 }
-
-
-# def consumer(msg, output_path: str):
-#     msg = json.loads(msg.decode('utf-8'))
-#     if msg.value['output_path']:
-#         print("[Success] Sending message")
-#     else:
-#         print("[Failure] Sending message")
-#         raise AirflowFailException
 
 
 with DAG(
@@ -172,23 +159,7 @@ with DAG(
             text="{{ ti.xcom_pull(task_ids='postprocess') }}",
             output_path=PARAMS['output_path']
         )
-        # poll_timeout=10
     )
-
-
-    # ------------------------------------------------------------
-    # 5. Receive result message from Kakao messaging server
-    # ------------------------------------------------------------
-    # result_monitor = ConsumeFromTopicOperator(
-    #     task_id='result_monitor',
-    #     kafka_config_id='kafka_default',
-    #     topics=[PARAMS['topic_request_message_monitor']],
-    #     apply_function=consumer,
-    #     apply_function_args=[PARAMS['output_path']],
-    #     poll_timeout=120,
-    #     max_messages=1,
-    #     # max_batch_size=20
-    # )
 
 
     # ------------------------------------------------------------
