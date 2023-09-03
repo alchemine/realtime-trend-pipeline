@@ -1,32 +1,49 @@
 from realtime_trend_pipeline.common import *
 from realtime_trend_pipeline.operators.crawl.factory import crawler_factory
+from realtime_trend_pipeline.operators.postprocess.postprocess import process_output_path_to_message
+from realtime_trend_pipeline.operators.request_message.request_message import producer as request_message_producer
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from airflow import DAG
 # from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.operators.hive_operator import HiveOperator
 from airflow.providers.apache.kafka.operators.produce import ProduceToTopicOperator
 # from airflow.providers.apache.kafka.operators.consume import ConsumeFromTopicOperator
-from airflow.exceptions import AirflowFailException
+# from airflow.exceptions import AirflowFailException
+from kafka import KafkaProducer
+
+
+params = dict(
+    db=PATH.app,
+    csv_table=f"{PATH.app}.topic_tmp",
+    orc_table=f"{PATH.app}.topic",
+    db_path=join(PATH.hdfs, f"{PATH.app}.db"),
+    topic_request_message='recent_topics',
+    # topic_request_message_monitor='recent_topics_monitor',
+    kafka_bootstrap_servers=['kafka-server:19092']
+)
+
+
+def on_failure(context):
+    # TODO: add new topic
+    producer = KafkaProducer(bootstrap_servers=params['kafka_bootstrap_servers'])
+    producer.send(
+        params['topic_request_message'],
+        json.dumps({'text': 'Failure occurs', 'output_path': None})
+    )
 
 
 default_args = {
     'owner': 'alchemine',
-    'start_date': datetime(2023, 9, 2)
+    'start_date': datetime(2023, 9, 2),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'on_failure_callback': on_failure
 }
-
-def producer(output_path):
-    yield (
-        json.dumps(0),
-        json.dumps(
-            {
-                "output_path": output_path
-            }
-        )
-    )
 
 
 # def consumer(msg, output_path: str):
@@ -64,16 +81,11 @@ with DAG(
     # Initialize parameters
     # ------------------------------------------------------------
     file_path = join(PATH.input, "topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}.csv")
-    params = dict(
-        db=PATH.app,
-        csv_table=f"{PATH.app}.topic_tmp",
-        orc_table=f"{PATH.app}.topic",
-        db_path=join(PATH.hdfs, f"{PATH.app}.db"),
-        local_csv_path=file_path,
-        output_path=join(PATH.output, "recent_topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}"),  # directory
-        topic_request_message='recent_topics',
-        # topic_request_message_monitor='recent_topics_monitor'
-    )
+    params['local_csv_path'] = file_path
+    params['output_path']    = join(
+        PATH.output,
+        "recent_topics", "{{ execution_date.strftime('%Y-%m-%d_%H-%M-%S') }}"
+    )  # directory
 
 
     # ------------------------------------------------------------
@@ -139,16 +151,29 @@ with DAG(
         conn_id='spark_conn'
     )
 
-    
+
     # ------------------------------------------------------------
-    # 4. Send message to Kakao messaging server
+    # 4. Process analysis result to message
+    # ------------------------------------------------------------
+    postprocess = PythonOperator(
+        task_id='postprocess',
+        python_callable=process_output_path_to_message,
+        op_kwargs={'output_path': params['output_path']}
+    )
+
+ 
+    # ------------------------------------------------------------
+    # 5. Send message to Kakao messaging server
     # ------------------------------------------------------------
     request_message = ProduceToTopicOperator(
         task_id='request_message',
         kafka_config_id='kafka_default',
         topic=params['topic_request_message'],
-        producer_function=producer,
-        producer_function_args=[params['output_path']],
+        producer_function=request_message_producer,
+        producer_function_kwargs=dict(
+            text="{{ ti.xcom_pull(task_ids='postprocess') }}",
+            output_path=params['output_path']
+        )
         # poll_timeout=10
     )
 
@@ -175,4 +200,4 @@ with DAG(
         task_id='finish'
     )
 
-    crawl >> load >> analyze >> request_message >> finish
+    crawl >> load >> analyze >> postprocess >> request_message >> finish

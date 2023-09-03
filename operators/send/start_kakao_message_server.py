@@ -24,20 +24,6 @@ def get_api():
     return api
 
 
-def process_text(output_path: str):
-    input_format  = "%Y-%m-%d_%H-%M-%S"
-    output_format = "%y/%m/%d %H:%M:%S"
-    
-    time     = datetime.strptime(basename(output_path), input_format).strftime(output_format)
-    csv_path = glob(f"{output_path}/*.csv")[0]  # *.csv is unique
-    df       = pd.read_csv(csv_path)
-
-    msg  =  "[최근 1시간 인기 검색어] \n"
-    msg += f"기준시간: {time} \n"
-    msg += '\n'.join(f"{rank:>2}.  {title}" for rank, title in enumerate(df.iloc[:, 0], start=1))
-    return msg
-
-
 def start_server(api):
     # producer = KafkaProducer(bootstrap_servers=['kafka-server:19092'])
     consumer = KafkaConsumer(
@@ -47,9 +33,9 @@ def start_server(api):
     )
 
     for msg in consumer:
-        output_path = msg.value['output_path']
+        text, output_path = msg.value['text'], msg.value['output_path']
         try:  # success
-            api.send_text(text=process_text(output_path), link={}, button_title="바로 확인")
+            api.send_text(text=text, link={}, button_title="바로 확인")
             msg_result = {output_path: True}
         except:  # failure
             msg_result = {output_path: False}

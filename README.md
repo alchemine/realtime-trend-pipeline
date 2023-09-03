@@ -7,10 +7,13 @@ Workflow: [realtime_trend_pipeline.py](https://github.com/alchemine/realtime_tre
 
 
 ## TODO
-1. 적절한 형태로 분석 결과를 문자열로 가공하는 작업을 새로운 task로 추출
-2. 시간이 제대로 싱크되지 않는 문제 해결
-3. Airflow callback 추가
-4. 시스템 안정성 추가
+- SQL/NoSQL DB 구축
+- Airflow callback을 위한 새로운 topic 및 consumer 추가
+- 시스템 안정성 추가
+
+- 시간이 제대로 싱크되지 않는 문제 해결 (`KST = pendulum.timezone("Asia/Seoul")` 이용)
+- airflow-dags에 submodule 추가
+- 각 단계에서 사용되는 기술 stack들 자세히 설명
 
 ---
 
